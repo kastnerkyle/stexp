@@ -1,0 +1,10 @@
+https://github.com/kastnerkyle/WaveRNN-PyTorch
+commit hash info for starting point
+
+commit b3911f7092ae4add610030da52a67f24a4ce7d6d
+Author: G-Wang <ywa289@sfu.ca>
+Date:   Fri Nov 16 14:29:05 2018 -0800
+
+    update with 10-bit audio sample and checkpoint
+
+Downloaded 10 bit training hparams and put in place
