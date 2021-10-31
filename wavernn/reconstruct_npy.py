@@ -1,10 +1,9 @@
-"""Training WaveRNN Model.
+"""Sample from WaveRNN Model.
 
-usage: train.py [options] <data-root>
+usage: reconstruct_npy.py [options] <npy-file>
 
 options:
-    --checkpoint-dir=<dir>      Directory where to save model checkpoints [default: checkpoints].
-    --checkpoint=<path>         Restore model from checkpoint path if given.
+    --checkpoint=<path>         Restore model from checkpoint path
     -h, --help                  Show this help message and exit
 """
 from docopt import docopt
@@ -12,13 +11,11 @@ from docopt import docopt
 import os
 from os.path import dirname, join, expanduser
 from tqdm import tqdm
+import sys
 
 import numpy as np
 import matplotlib.pyplot as plt
 import librosa
-from audio import soundsc
-
-from scipy.io import wavfile
 
 from model import build_model
 
@@ -34,6 +31,10 @@ from loss_function import nll_loss
 from dataset import raw_collate, discrete_collate, AudiobookDataset
 from hparams import hparams as hp
 from lrschedule import noam_learning_rate_decay, step_learning_rate_decay
+
+from kkpthlib.datasets.speech.audio_processing.audio_tools import soundsc
+from scipy.io import wavfile
+
 
 global_step = 0
 global_epoch = 0
@@ -55,22 +56,25 @@ def save_checkpoint(device, model, optimizer, step, checkpoint_dir, epoch):
     print("Saved checkpoint:", checkpoint_path)
 
 
-def _load(checkpoint_path):
+def _load(checkpoint_path, DEVICE="cuda"):
+    checkpoint = torch.load(checkpoint_path, map_location=DEVICE)
+    """
     if use_cuda:
-        checkpoint = torch.load(checkpoint_path)
+        checkpoint = torch.load(checkpoint_path, map_location=DEVICE)
     else:
         checkpoint = torch.load(checkpoint_path,
                                 map_location=lambda storage, loc: storage)
+    """
     return checkpoint
 
 
-def load_checkpoint(path, model, optimizer, reset_optimizer):
+def load_checkpoint(path, model, optimizer, reset_optimizer, DEVICE="cuda"):
     global global_step
     global global_epoch
     global global_test_step
 
     print("Load checkpoint from: {}".format(path))
-    checkpoint = _load(path)
+    checkpoint = _load(path, DEVICE=DEVICE)
     model.load_state_dict(checkpoint["state_dict"])
     if not reset_optimizer:
         optimizer_state = checkpoint["optimizer"]
@@ -100,26 +104,23 @@ def evaluate_model(model, data_loader, checkpoint_dir, limit_eval_to=5):
 
     """
     test_path = data_loader.dataset.test_path
-    test_mel_path = data_loader.dataset.test_mel_path
-    test_mel_files = sorted(os.listdir(test_mel_path))
-    test_wav_path = data_loader.dataset.test_mel_path
-    test_wav_files = sorted(os.listdir(test_wav_path))
+    test_files = os.listdir(test_path)
     counter = 0
     output_dir = os.path.join(checkpoint_dir,'eval')
-    for f in test_mel_files:
-        mel = np.load(os.path.join(test_mel_path,f))
-        wav = model.generate(mel)
-        # save wav
-        wav_path = os.path.join(output_dir,"checkpoint_step{:09d}_wav_{}.wav".format(global_step,counter))
-        wavfile.write(wav_path, hp.sample_rate, soundsc(wav))
-        #librosa.output.write_wav(wav_path, wav, sr=hp.sample_rate)
-        # save wav plot
-        fig_path = os.path.join(output_dir,"checkpoint_step{:09d}_wav_{}.png".format(global_step,counter))
-        fig = plt.plot(wav.reshape(-1))
-        plt.savefig(fig_path)
-        # clear fig to drawing to the same plot
-        plt.clf()
-        counter += 1
+    for f in test_files:
+        if f[-7:] == "mel.npy":
+            mel = np.load(os.path.join(test_path,f))
+            wav = model.generate(mel)
+            # save wav
+            wav_path = os.path.join(output_dir,"checkpoint_step{:09d}_wav_{}.wav".format(global_step,counter))
+            librosa.output.write_wav(wav_path, wav, sr=hp.sample_rate)
+            # save wav plot
+            fig_path = os.path.join(output_dir,"checkpoint_step{:09d}_wav_{}.png".format(global_step,counter))
+            fig = plt.plot(wav.reshape(-1))
+            plt.savefig(fig_path)
+            # clear fig to drawing to the same plot
+            plt.clf()
+            counter += 1
         # stop evaluation early via limit_eval_to
         if counter >= limit_eval_to:
             break
@@ -187,32 +188,45 @@ def train_loop(device, model, data_loader, optimizer, checkpoint_dir):
         global_epoch += 1
 
 
+def kk_evaluate_model(model, data_loader, limit_eval_to=5):
+    """evaluate model and save generated wav and plot
+
+    """
+    test_path = data_loader.dataset.test_path
+    test_files = os.listdir(test_path)
+    counter = 0
+    output_dir = 'eval'
+    os.makedirs(output_dir)
+    for f in test_files:
+        if f[-7:] == "mel.npy":
+            mel = np.load(os.path.join(test_path,f))
+            print("mel")
+            from IPython import embed; embed(); raise ValueError()
+            wav = model.generate(mel, DEVICE="cpu")
+            # save wav
+            wav_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}.wav".format(global_step,counter))
+            librosa.output.write_wav(wav_path, wav, sr=hp.sample_rate)
+            # save wav plot
+            fig_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}.png".format(global_step,counter))
+            fig = plt.plot(wav.reshape(-1))
+            plt.savefig(fig_path)
+            # clear fig to drawing to the same plot
+            plt.clf()
+            counter += 1
+        # stop evaluation early via limit_eval_to
+        if counter >= limit_eval_to:
+            break
+
 
 if __name__=="__main__":
     args = docopt(__doc__)
-    #print("Command line args:\n", args)
-    checkpoint_dir = args["--checkpoint-dir"]
     checkpoint_path = args["--checkpoint"]
-    data_root = args["<data-root>"]
+    npy_file = args["<npy-file>"]
+    use_device= 'cuda' if torch.cuda.is_available() else 'cpu'
+    use_device="cpu"
+    print("using device:{}".format(use_device))
+    model = build_model().to(use_device)
 
-    # make dirs, load dataloader and set up device
-    os.makedirs(checkpoint_dir, exist_ok=True)
-    os.makedirs(os.path.join(checkpoint_dir,'eval'), exist_ok=True)
-    dataset = AudiobookDataset(data_root)
-    if hp.input_type == 'raw':
-        collate_fn = raw_collate
-    elif hp.input_type == 'mixture':
-        collate_fn = raw_collate
-    elif hp.input_type in ['bits', 'mulaw']:
-        collate_fn = discrete_collate
-    else:
-        raise ValueError("input_type:{} not supported".format(hp.input_type))
-    data_loader = DataLoader(dataset, collate_fn=collate_fn, shuffle=True, num_workers=0, batch_size=hp.batch_size)
-    device = torch.device("cuda" if use_cuda else "cpu")
-    print("using device:{}".format(device))
-
-    # build model, create optimizer
-    model = build_model().to(device)
     optimizer = optim.Adam(model.parameters(),
                            lr=hp.initial_learning_rate, betas=(
         hp.adam_beta1, hp.adam_beta2),
@@ -228,43 +242,19 @@ if __name__=="__main__":
 
     # load checkpoint
     if checkpoint_path is None:
-        print("no checkpoint specified as --checkpoint argument, creating new model...")
-    else:
-        model = load_checkpoint(checkpoint_path, model, optimizer, False)
-        print("loading model from checkpoint:{}".format(checkpoint_path))
-        # set global_test_step to True so we don't evaluate right when we load in the model
-        global_test_step = True
+        print("no checkpoint specified as --checkpoint argument, exiting...")
+        sys.exit()
 
-    # main train loop
-    try:
-        train_loop(device, model, data_loader, optimizer, checkpoint_dir)
-    except KeyboardInterrupt:
-        print("Interrupted!")
-        pass
-    finally:
-        print("saving model....")
-        save_checkpoint(device, model, optimizer, global_step, checkpoint_dir, global_epoch)
-    
-
-def test_eval():
-    data_root = "data_dir"
-    dataset = AudiobookDataset(data_root)
-    if hp.input_type == 'raw':
-        collate_fn = raw_collate
-    elif hp.input_type == 'bits':
-        collate_fn = discrete_collate
-    else:
-        raise ValueError("input_type:{} not supported".format(hp.input_type))
-    data_loader = DataLoader(dataset, collate_fn=collate_fn, shuffle=True, num_workers=0, batch_size=hp.batch_size)
-    device = torch.device("cuda" if use_cuda else "cpu")
-    print("using device:{}".format(device))
-
-    # build model, create optimizer
-    model = build_model().to(device)
-
-    evaluate_model(model, data_loader)
-
-    
-
-    
-
+    # reset optimizer
+    model = load_checkpoint(checkpoint_path, model, optimizer, False, DEVICE=use_device)
+    model = model.to(use_device)
+    loaded_npy = torch.Tensor(np.load(npy_file)).to(use_device)
+    # 1, time, mel, 1 from npy -> mel, time 2D array
+    wav = model.generate(loaded_npy[0, :, :, 0].T, DEVICE=use_device)
+    output_dir = 'eval'
+    wav_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}.wav".format(global_step,0))
+    wavfile.write(wav_path, hp.sample_rate, soundsc(wav))
+    # save wav plot
+    fig_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}.png".format(global_step,0))
+    fig = plt.plot(wav.reshape(-1))
+    plt.savefig(fig_path)

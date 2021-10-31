@@ -12,20 +12,27 @@ import pickle
 class AudiobookDataset(Dataset):
     def __init__(self, data_path):
         self.path = os.path.join(data_path, "")
-        with open(os.path.join(self.path,'dataset_ids.pkl'), 'rb') as f:
-            self.metadata = pickle.load(f)
-        self.mel_path = os.path.join(data_path, "mel")
-        self.wav_path = os.path.join(data_path, "wav")
+        with open(os.path.join(self.path,'train_dataset_ids.pkl'), 'rb') as f:
+            self.train_metadata = pickle.load(f)
+
+        self.train_metadata_index = {}
+        for i, el in enumerate(sorted(self.train_metadata)):
+            self.train_metadata_index[i] = el
+        self.train_mel_path = os.path.join(data_path, "mel")
+        self.train_wav_path = os.path.join(data_path, "wav")
+
         self.test_path = os.path.join(data_path, "test")
-        
+        self.test_mel_path = os.path.join(data_path, "test", "mel")
+        self.test_wav_path = os.path.join(data_path, "test", "wav")
+
     def __getitem__(self, index):
-        file = self.metadata[index]
-        m = np.load(os.path.join(self.mel_path,'{}.npy'.format(file)))
-        x = np.load(os.path.join(self.wav_path,'{}.npy'.format(file)))
+        file = self.train_metadata_index[index]
+        m = np.load(os.path.join(self.train_mel_path,'{}.npy'.format(file)))
+        x = np.load(os.path.join(self.train_wav_path,'{}.npy'.format(file)))
         return m, x
 
     def __len__(self):
-        return len(self.metadata)
+        return len(self.train_metadata)
 
 
 def raw_collate(batch) :

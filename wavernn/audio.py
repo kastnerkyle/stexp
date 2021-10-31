@@ -102,6 +102,35 @@ def quantize(x):
     return quant.astype(np.int)
 
 
+def soundsc(X, gain_scale=.9, copy=True):
+    """
+    Approximate implementation of soundsc from MATLAB without the audio playing.
+
+    Parameters
+    ----------
+    X : ndarray
+        Signal to be rescaled
+
+    gain_scale : float
+        Gain multipler, default .9 (90% of maximum representation)
+
+    copy : bool, optional (default=True)
+        Whether to make a copy of input signal or operate in place.
+
+    Returns
+    -------
+    X_sc : ndarray
+        (-32767, 32767) scaled version of X as int16, suitable for writing
+        with scipy.io.wavfile
+    """
+    X = np.array(X, copy=copy)
+    X = (X - X.min()) / (X.max() - X.min())
+    X = 2 * X - 1
+    X = gain_scale * X
+    X = X * 2 ** 15
+    return X.astype('int16')
+
+
 # testing
 def test_everything():
     wav = np.random.randn(12000,)

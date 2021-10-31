@@ -23,15 +23,15 @@ class hparams:
     # note: r9r9's deepvoice3 preprocessing is used instead of Fatcord's original.
     #--------------     
     # audio processing parameters
-    num_mels = 80
+    num_mels = 256
     fmin = 125
     fmax = 7600
-    fft_size = 1024
+    fft_size = 6 * 256
     hop_size = 256
-    win_length = 1024
+    win_length = 6 * 256
     sample_rate = 22050
     preemphasis = 0.97
-    min_level_db = -100
+    min_level_db = -90
     ref_level_db = 20
     rescaling = False
     rescaling_max = 0.999
