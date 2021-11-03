@@ -32,9 +32,35 @@ from dataset import raw_collate, discrete_collate, AudiobookDataset
 from hparams import hparams as hp
 from lrschedule import noam_learning_rate_decay, step_learning_rate_decay
 
-from kkpthlib.datasets.speech.audio_processing.audio_tools import soundsc
 from scipy.io import wavfile
+def soundsc(X, gain_scale=.9, copy=True):
+    # copied from kkpthlib
+    """
+    Approximate implementation of soundsc from MATLAB without the audio playing.
 
+    Parameters
+    ----------
+    X : ndarray
+        Signal to be rescaled
+
+    gain_scale : float
+        Gain multipler, default .9 (90% of maximum representation)
+
+    copy : bool, optional (default=True)
+        Whether to make a copy of input signal or operate in place.
+
+    Returns
+    -------
+    X_sc : ndarray
+        (-32767, 32767) scaled version of X as int16, suitable for writing
+        with scipy.io.wavfile
+    """
+    X = np.array(X, copy=copy)
+    X = (X - X.min()) / (X.max() - X.min())
+    X = 2 * X - 1
+    X = gain_scale * X
+    X = X * 2 ** 15
+    return X.astype('int16')
 
 global_step = 0
 global_epoch = 0
