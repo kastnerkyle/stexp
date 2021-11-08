@@ -4,6 +4,7 @@ usage: reconstruct_npy.py [options] <npy-file>
 
 options:
     --checkpoint=<path>         Restore model from checkpoint path
+    --bias_information=<path>   Path to bias information from the melnet encoder to tell where the frame cuts are
     -h, --help                  Show this help message and exit
 """
 from docopt import docopt
@@ -247,6 +248,18 @@ def kk_evaluate_model(model, data_loader, limit_eval_to=5):
 if __name__=="__main__":
     args = docopt(__doc__)
     checkpoint_path = args["--checkpoint"]
+    bias_path = args["--bias_information"]
+    if bias_path is None:
+        print("no bias_information file specified, using default cutoff of 0")
+        start_frame = 0
+    else:
+        if not os.path.exists(bias_path):
+            print("--bias_information={}, file not found! Ensure the path is correct and the file exists".format(bias_path))
+            sys.exit()
+        with open(bias_path, "r") as f:
+            l = f.readlines()
+            start_frame = int(l[1].strip().split(":")[1])
+
     npy_file = args["<npy-file>"]
     use_device= 'cuda' if torch.cuda.is_available() else 'cpu'
     use_device="cpu"
@@ -275,12 +288,22 @@ if __name__=="__main__":
     model = load_checkpoint(checkpoint_path, model, optimizer, False, DEVICE=use_device)
     model = model.to(use_device)
     loaded_npy = torch.Tensor(np.load(npy_file)).to(use_device)
+
     # 1, time, mel, 1 from npy -> mel, time 2D array
-    wav = model.generate(loaded_npy[0, :, :, 0].T, DEVICE=use_device)
+    wav = model.generate(loaded_npy[0, start_frame:, :, 0].T, DEVICE=use_device)
     output_dir = 'eval'
     wav_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}.wav".format(global_step,0))
     wavfile.write(wav_path, hp.sample_rate, soundsc(wav))
     # save wav plot
     fig_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}.png".format(global_step,0))
+    fig = plt.plot(wav.reshape(-1))
+    plt.savefig(fig_path)
+
+    wav = model.generate(loaded_npy[0, :, :, 0].T, DEVICE=use_device)
+    output_dir = 'eval'
+    wav_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}_full.wav".format(global_step,0))
+    wavfile.write(wav_path, hp.sample_rate, soundsc(wav))
+    # save wav plot
+    fig_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}_full.png".format(global_step,0))
     fig = plt.plot(wav.reshape(-1))
     plt.savefig(fig_path)
