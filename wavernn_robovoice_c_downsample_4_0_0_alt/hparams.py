@@ -23,12 +23,13 @@ class hparams:
     # note: r9r9's deepvoice3 preprocessing is used instead of Fatcord's original.
     #--------------     
     # audio processing parameters
-    num_mels = 256
+    #num_mels = 256 #preprocess with 256 but reduce based on axis split
+    num_mels = 32 #256
     fmin = 125
     fmax = 7600
-    fft_size = 6 * 256
-    hop_size = 256
-    win_length = 6 * 256
+    fft_size = 6 * 200 # 2 * 960 #6 * 256
+    hop_size = 200 # 960 #256
+    win_length = 6 * 200 #2 * 960 #6 * 256
     sample_rate = 22050
     preemphasis = 0.97
     min_level_db = -90
@@ -43,9 +44,15 @@ class hparams:
     rnn_dims = 800
     fc_dims = 512
     pad = 2
-    # note upsample factors must multiply out to be equal to hop_size, so adjust
+    # note upsample factors must multiply out to be equal to hop_size * wav_seq_factor, so adjust
     # if necessary (i.e 4 x 4 x 16 = 256)
-    upsample_factors = (4, 4, 16)
+    # interpolate instead?
+    #upsample_factors = (4, 4, 16)
+    upsample_factors = (4, 5, 10)
+    #axis_splits = 21212
+    axis_splits = 21212
+    # 0 indexed
+    split_offset = 0
     compute_dims = 128
     res_out_dims = 128
     res_blocks = 10
@@ -63,7 +70,7 @@ class hparams:
     # possibly need wav_seq_factor because of melnet multiscale changes - default would be 1
     wav_seq_factor = 1
     # factor to use for interpolating the spectrogram in the time dimension - depends on the split offset you are at!
-    time_resample_factor = 1
+    time_resample_factor = 4
     grad_norm = 10
     #learning rate parameters
     initial_learning_rate=1e-4
@@ -81,4 +88,6 @@ class hparams:
     weight_decay = 0.0
     #fix_learning_rate = 1e-4 # modify if one wants to use a fixed learning rate, else set to None to use noam learning rate
     fix_learning_rate = 5e-6 # modify if one wants to use a fixed learning rate, else set to None to use noam learning rate
+    #fix_learning_rate = 1e-7 # modify if one wants to use a fixed learning rate, else set to None to use noam learning rate
+
     #-----------------

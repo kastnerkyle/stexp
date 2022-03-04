@@ -167,10 +167,7 @@ class Model(nn.Module) :
             h1 = torch.zeros(1, self.rnn_dims).to(DEVICE)
             h2 = torch.zeros(1, self.rnn_dims).to(DEVICE)
             
-            if "cuda" not in DEVICE:
-                mels = torch.FloatTensor(mels).to(DEVICE).unsqueeze(0)
-            else:
-                mels = mels.unsqueeze(0)
+            mels = torch.FloatTensor(mels).to(DEVICE).unsqueeze(0)
             mels, aux = self.upsample(mels)
             
             aux_idx = [self.aux_dims * i for i in range(5)]

@@ -5,6 +5,7 @@ usage: reconstruct_npy.py [options] <npy-file>
 options:
     --checkpoint=<path>         Restore model from checkpoint path
     --bias_information=<path>   Path to bias information from the melnet encoder to tell where the frame cuts are
+    --bias_data_frame_offset=<val> Value for bias data frame offset, negative is "forward" in time, positive backward
     -h, --help                  Show this help message and exit
 """
 
@@ -57,7 +58,7 @@ from hparams import hparams as hp
 from lrschedule import noam_learning_rate_decay, step_learning_rate_decay
 
 from scipy.io import wavfile
-def soundsc(X, gain_scale=.9, copy=True):
+def soundsc(X, gain_scale=.8, copy=True):
     # copied from kkpthlib
     """
     Approximate implementation of soundsc from MATLAB without the audio playing.
@@ -79,7 +80,7 @@ def soundsc(X, gain_scale=.9, copy=True):
         (-32767, 32767) scaled version of X as int16, suitable for writing
         with scipy.io.wavfile
     """
-    X = np.array(X, copy=copy)
+    X = np.array(X.astype("float64"), copy=copy)
     X = (X - X.min()) / (X.max() - X.min())
     X = 2 * X - 1
     X = gain_scale * X
@@ -272,6 +273,7 @@ if __name__=="__main__":
     args = docopt(__doc__)
     checkpoint_path = args["--checkpoint"]
     bias_path = args["--bias_information"]
+    bias_data_frame_offset = args["--bias_data_frame_offset"]
     if bias_path is None:
         print("no bias_information file specified, using default cutoff of 0")
         start_frame = 0
@@ -282,6 +284,11 @@ if __name__=="__main__":
         with open(bias_path, "r") as f:
             l = f.readlines()
             start_frame = int(l[1].strip().split(":")[1])
+
+    if bias_data_frame_offset is None:
+        bias_data_frame_offset = 0
+    else:
+        bias_data_frame_offset = float(bias_data_frame_offset)
 
     npy_file = args["<npy-file>"]
     use_device= 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -311,26 +318,11 @@ if __name__=="__main__":
     model = load_checkpoint(checkpoint_path, model, optimizer, False, DEVICE=use_device)
     model = model.to(use_device)
     mels = np.load(npy_file)
+    # this is variable now... oy oy
+    # can support non-int actually
+    start_frame = max(0, start_frame - bias_data_frame_offset)
 
     # 1, time, mel, 1 from npy -> mel, time 2D array
-    m_in = mels[0, start_frame:, :, 0].T
-    rs = hp.time_resample_factor
-    if rs != 1:
-        # interpolate back to same timescale
-        t = [np.interp(np.arange(rs * m_in.shape[1]) / rs, np.arange(m_in.shape[1]), m_in[i, :]) for i in range(m_in.shape[0])]
-        m_in = np.vstack(t)
-    pth_mels = torch.Tensor(m_in).to(use_device)
-    wav = model.generate(pth_mels, DEVICE=use_device)
-    output_dir = 'eval'
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
-    wav_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}.wav".format(global_step,0))
-    wavfile.write(wav_path, hp.sample_rate, soundsc(wav))
-    # save wav plot
-    fig_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}.png".format(global_step,0))
-    fig = plt.plot(wav.reshape(-1))
-    plt.savefig(fig_path)
-
     m_in = mels[0, :, :, 0].T
     rs = hp.time_resample_factor
     if rs != 1:
@@ -339,10 +331,35 @@ if __name__=="__main__":
         m_in = np.vstack(t)
     pth_mels = torch.Tensor(m_in).to(use_device)
     wav = model.generate(pth_mels, DEVICE=use_device)
+
+    # window it for about 100 ms 
+    window_len = int(.1 * 22050)
+    wav[:window_len] = np.blackman(2 * window_len)[:window_len, None] * wav[:window_len]
+    wav[-window_len:] = np.blackman(2 * window_len)[-window_len:, None] * wav[-window_len:]
+
     output_dir = 'eval'
     wav_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}_full.wav".format(global_step,0))
-    wavfile.write(wav_path, hp.sample_rate, soundsc(wav))
+    scaled_wav = soundsc(wav - np.mean(wav))
+    wavfile.write(wav_path, hp.sample_rate, scaled_wav)
     # save wav plot
     fig_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}_full.png".format(global_step,0))
+    fig = plt.plot(wav.reshape(-1))
+    plt.savefig(fig_path)
+
+    # cut it based on the cut point
+    s = int(start_frame * rs * 200) # hard code stft samples per frame for now... 
+    wav = wav[s:]
+    # window it for about 100 ms on the end of the cut
+    #wav[:window_len] = np.blackman(2 * window_len)[:window_len, None] * wav[:window_len]
+    wav[-window_len:] = np.blackman(2 * window_len)[-window_len:, None] * wav[-window_len:]
+
+    output_dir = 'eval'
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+    wav_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}.wav".format(global_step,0))
+    scaled_wav = soundsc(wav - np.mean(wav))
+    wavfile.write(wav_path, hp.sample_rate, scaled_wav)
+    # save wav plot
+    fig_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}.png".format(global_step,0))
     fig = plt.plot(wav.reshape(-1))
     plt.savefig(fig_path)

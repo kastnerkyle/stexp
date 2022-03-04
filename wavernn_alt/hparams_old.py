@@ -23,15 +23,15 @@ class hparams:
     # note: r9r9's deepvoice3 preprocessing is used instead of Fatcord's original.
     #--------------     
     # audio processing parameters
-    num_mels = 256
+    num_mels = 80
     fmin = 125
     fmax = 7600
-    fft_size = 6 * 256
+    fft_size = 1024
     hop_size = 256
-    win_length = 6 * 256
+    win_length = 1024
     sample_rate = 22050
     preemphasis = 0.97
-    min_level_db = -90
+    min_level_db = -100
     ref_level_db = 20
     rescaling = False
     rescaling_max = 0.999
@@ -60,10 +60,6 @@ class hparams:
     # seq_len_factor can be adjusted to increase training sequence length (will increase GPU usage)
     seq_len_factor = 5
     seq_len = seq_len_factor * hop_size
-    # possibly need wav_seq_factor because of melnet multiscale changes - default would be 1
-    wav_seq_factor = 1
-    # factor to use for interpolating the spectrogram in the time dimension - depends on the split offset you are at!
-    time_resample_factor = 1
     grad_norm = 10
     #learning rate parameters
     initial_learning_rate=1e-4

@@ -1,37 +1,12 @@
-"""Sample from WaveRNN Model.
+"""Training WaveRNN Model.
 
-usage: reconstruct_npy.py [options] <npy-file>
+usage: train.py [options] <data-root>
 
 options:
-    --checkpoint=<path>         Restore model from checkpoint path
-    --bias_information=<path>   Path to bias information from the melnet encoder to tell where the frame cuts are
+    --checkpoint-dir=<dir>      Directory where to save model checkpoints [default: checkpoints].
+    --checkpoint=<path>         Restore model from checkpoint path if given.
     -h, --help                  Show this help message and exit
 """
-
-import torch
-import random
-import numpy as np
-import os
-
-#default_seed = 2112
-default_seed = 40000
-#default_seed = 4142 
-print("Setting all possible default seeds based on {}".format(default_seed))
-# try to get deterministic runs
-def seed_everything(seed=1234):
-    random.seed(seed)
-    tseed = random.randint(1, 1E6)
-    tcseed = random.randint(1, 1E6)
-    npseed = random.randint(1, 1E6)
-    ospyseed = random.randint(1, 1E6)
-    torch.manual_seed(tseed)
-    torch.cuda.manual_seed_all(tcseed)
-    np.random.seed(npseed)
-    os.environ['PYTHONHASHSEED'] = str(ospyseed)
-    #torch.backends.cudnn.deterministic = True
-
-seed_everything(default_seed)
-
 from docopt import docopt
 
 import os
@@ -39,11 +14,13 @@ from os.path import dirname, join, expanduser
 from tqdm import tqdm
 import sys
 
+import numpy as np
 import matplotlib.pyplot as plt
 import librosa
 
 from model import build_model
 
+import torch
 from torch import nn
 import torch.nn.functional as F
 from torch import optim
@@ -55,36 +32,6 @@ from loss_function import nll_loss
 from dataset import raw_collate, discrete_collate, AudiobookDataset
 from hparams import hparams as hp
 from lrschedule import noam_learning_rate_decay, step_learning_rate_decay
-
-from scipy.io import wavfile
-def soundsc(X, gain_scale=.9, copy=True):
-    # copied from kkpthlib
-    """
-    Approximate implementation of soundsc from MATLAB without the audio playing.
-
-    Parameters
-    ----------
-    X : ndarray
-        Signal to be rescaled
-
-    gain_scale : float
-        Gain multipler, default .9 (90% of maximum representation)
-
-    copy : bool, optional (default=True)
-        Whether to make a copy of input signal or operate in place.
-
-    Returns
-    -------
-    X_sc : ndarray
-        (-32767, 32767) scaled version of X as int16, suitable for writing
-        with scipy.io.wavfile
-    """
-    X = np.array(X, copy=copy)
-    X = (X - X.min()) / (X.max() - X.min())
-    X = 2 * X - 1
-    X = gain_scale * X
-    X = X * 2 ** 15
-    return X.astype('int16')
 
 global_step = 0
 global_epoch = 0
@@ -250,8 +197,6 @@ def kk_evaluate_model(model, data_loader, limit_eval_to=5):
     for f in test_files:
         if f[-7:] == "mel.npy":
             mel = np.load(os.path.join(test_path,f))
-            print("mel")
-            from IPython import embed; embed(); raise ValueError()
             wav = model.generate(mel, DEVICE="cpu")
             # save wav
             wav_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}.wav".format(global_step,counter))
@@ -270,24 +215,33 @@ def kk_evaluate_model(model, data_loader, limit_eval_to=5):
 
 if __name__=="__main__":
     args = docopt(__doc__)
+    #print("Command line args:\n", args)
+    checkpoint_dir = args["--checkpoint-dir"]
     checkpoint_path = args["--checkpoint"]
-    bias_path = args["--bias_information"]
-    if bias_path is None:
-        print("no bias_information file specified, using default cutoff of 0")
-        start_frame = 0
-    else:
-        if not os.path.exists(bias_path):
-            print("--bias_information={}, file not found! Ensure the path is correct and the file exists".format(bias_path))
-            sys.exit()
-        with open(bias_path, "r") as f:
-            l = f.readlines()
-            start_frame = int(l[1].strip().split(":")[1])
+    data_root = args["<data-root>"]
 
-    npy_file = args["<npy-file>"]
-    use_device= 'cuda' if torch.cuda.is_available() else 'cpu'
-    #use_device="cpu"
-    print("using device:{}".format(use_device))
-    model = build_model().to(use_device)
+    # make dirs, load dataloader and set up device
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    os.makedirs(os.path.join(checkpoint_dir,'eval'), exist_ok=True)
+    # TODO?
+    dataset = AudiobookDataset(data_root, axis_splits=21212, axis_splits_offset=3)
+    if hp.input_type == 'raw':
+        collate_fn = raw_collate
+    elif hp.input_type == 'mixture':
+        collate_fn = raw_collate
+    elif hp.input_type in ['bits', 'mulaw']:
+        collate_fn = discrete_collate
+    else:
+        raise ValueError("input_type:{} not supported".format(hp.input_type))
+    data_loader = DataLoader(dataset, collate_fn=collate_fn, shuffle=True, num_workers=0, batch_size=hp.batch_size)
+    use_cuda = False
+    device = torch.device("cuda" if use_cuda else "cpu")
+    DEVICE="cpu"
+    print("using device:{}".format(device))
+
+    # build model, create optimizer
+    #model = build_model().to(device)
+    model = build_model().to(DEVICE)
 
     optimizer = optim.Adam(model.parameters(),
                            lr=hp.initial_learning_rate, betas=(
@@ -306,43 +260,43 @@ if __name__=="__main__":
     if checkpoint_path is None:
         print("no checkpoint specified as --checkpoint argument, exiting...")
         sys.exit()
-
     # reset optimizer
-    model = load_checkpoint(checkpoint_path, model, optimizer, False, DEVICE=use_device)
-    model = model.to(use_device)
-    mels = np.load(npy_file)
+    model = load_checkpoint(checkpoint_path, model, optimizer, False, DEVICE=DEVICE)
+    model = model.to(DEVICE)
+    kk_evaluate_model(model, data_loader)
+    """
+    else:
+        model = load_checkpoint(checkpoint_path, model, optimizer, False)
+        print("loading model from checkpoint:{}".format(checkpoint_path))
+        # set global_test_step to True so we don't evaluate right when we load in the model
+        global_test_step = True
 
-    # 1, time, mel, 1 from npy -> mel, time 2D array
-    m_in = mels[0, start_frame:, :, 0].T
-    rs = hp.time_resample_factor
-    if rs != 1:
-        # interpolate back to same timescale
-        t = [np.interp(np.arange(rs * m_in.shape[1]) / rs, np.arange(m_in.shape[1]), m_in[i, :]) for i in range(m_in.shape[0])]
-        m_in = np.vstack(t)
-    pth_mels = torch.Tensor(m_in).to(use_device)
-    wav = model.generate(pth_mels, DEVICE=use_device)
-    output_dir = 'eval'
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
-    wav_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}.wav".format(global_step,0))
-    wavfile.write(wav_path, hp.sample_rate, soundsc(wav))
-    # save wav plot
-    fig_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}.png".format(global_step,0))
-    fig = plt.plot(wav.reshape(-1))
-    plt.savefig(fig_path)
+    # main train loop
+    try:
+        train_loop(device, model, data_loader, optimizer, checkpoint_dir)
+    except KeyboardInterrupt:
+        print("Interrupted!")
+        pass
+    finally:
+        print("saving model....")
+        save_checkpoint(device, model, optimizer, global_step, checkpoint_dir, global_epoch)
+    """
 
-    m_in = mels[0, :, :, 0].T
-    rs = hp.time_resample_factor
-    if rs != 1:
-        # interpolate back to same timescale
-        t = [np.interp(np.arange(rs * m_in.shape[1]) / rs, np.arange(m_in.shape[1]), m_in[i, :]) for i in range(m_in.shape[0])]
-        m_in = np.vstack(t)
-    pth_mels = torch.Tensor(m_in).to(use_device)
-    wav = model.generate(pth_mels, DEVICE=use_device)
-    output_dir = 'eval'
-    wav_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}_full.wav".format(global_step,0))
-    wavfile.write(wav_path, hp.sample_rate, soundsc(wav))
-    # save wav plot
-    fig_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}_full.png".format(global_step,0))
-    fig = plt.plot(wav.reshape(-1))
-    plt.savefig(fig_path)
+
+def test_eval():
+    data_root = "data_dir"
+    dataset = AudiobookDataset(data_root, axis_splits=21212, axis_splits_offset=3)
+    if hp.input_type == 'raw':
+        collate_fn = raw_collate
+    elif hp.input_type == 'bits':
+        collate_fn = discrete_collate
+    else:
+        raise ValueError("input_type:{} not supported".format(hp.input_type))
+    data_loader = DataLoader(dataset, collate_fn=collate_fn, shuffle=True, num_workers=0, batch_size=hp.batch_size)
+    device = torch.device("cuda" if use_cuda else "cpu")
+    print("using device:{}".format(device))
+
+    # build model, create optimizer
+    model = build_model().to(device)
+
+    evaluate_model(model, data_loader)

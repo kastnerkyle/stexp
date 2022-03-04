@@ -311,9 +311,11 @@ if __name__=="__main__":
     model = load_checkpoint(checkpoint_path, model, optimizer, False, DEVICE=use_device)
     model = model.to(use_device)
     mels = np.load(npy_file)
+    # -2 from the attention model processing
+    start_frame = max(0, start_frame - 2)
 
     # 1, time, mel, 1 from npy -> mel, time 2D array
-    m_in = mels[0, start_frame:, :, 0].T
+    m_in = mels[0, :, :, 0].T
     rs = hp.time_resample_factor
     if rs != 1:
         # interpolate back to same timescale
@@ -321,11 +323,20 @@ if __name__=="__main__":
         m_in = np.vstack(t)
     pth_mels = torch.Tensor(m_in).to(use_device)
     wav = model.generate(pth_mels, DEVICE=use_device)
+    # cut it based on the cut point
+    s = start_frame * rs * 200 # hard code stft samples per frame for now... 
+    wav = wav[s:]
+    # window it for about 100 ms 
+    window_len = int(.1 * 22050)
+    wav[:window_len] = np.blackman(2 * window_len)[:window_len, None] * wav[:window_len]
+    wav[-window_len:] = np.blackman(2 * window_len)[-window_len:, None] * wav[-window_len:]
+
     output_dir = 'eval'
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
     wav_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}.wav".format(global_step,0))
-    wavfile.write(wav_path, hp.sample_rate, soundsc(wav))
+    scaled_wav = soundsc(wav - np.mean(wav))
+    wavfile.write(wav_path, hp.sample_rate, scaled_wav)
     # save wav plot
     fig_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}.png".format(global_step,0))
     fig = plt.plot(wav.reshape(-1))
@@ -339,9 +350,15 @@ if __name__=="__main__":
         m_in = np.vstack(t)
     pth_mels = torch.Tensor(m_in).to(use_device)
     wav = model.generate(pth_mels, DEVICE=use_device)
+    # window it for about 100 ms 
+    window_len = int(.1 * 22050)
+    wav[:window_len] = np.blackman(2 * window_len)[:window_len, None] * wav[:window_len]
+    wav[-window_len:] = np.blackman(2 * window_len)[-window_len:, None] * wav[-window_len:]
+
     output_dir = 'eval'
     wav_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}_full.wav".format(global_step,0))
-    wavfile.write(wav_path, hp.sample_rate, soundsc(wav))
+    scaled_wav = soundsc(wav - np.mean(wav))
+    wavfile.write(wav_path, hp.sample_rate, scaled_wav)
     # save wav plot
     fig_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}_full.png".format(global_step,0))
     fig = plt.plot(wav.reshape(-1))
