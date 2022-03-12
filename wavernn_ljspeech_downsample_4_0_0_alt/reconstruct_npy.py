@@ -345,8 +345,8 @@ if __name__=="__main__":
     pth_mels = torch.Tensor(m_in).to(use_device)
     wav = model.generate(pth_mels, DEVICE=use_device)
 
-    # window it for about 100 ms 
-    window_len = int(.1 * 22050)
+    # window it for about 5 ms
+    window_len = int(.005 * 22050)
     wav[:window_len] = np.blackman(2 * window_len)[:window_len, None] * wav[:window_len]
     wav[-window_len:] = np.blackman(2 * window_len)[-window_len:, None] * wav[-window_len:]
 
@@ -372,7 +372,8 @@ if __name__=="__main__":
     else:
         e = None
     wav = wav[s:e]
-    # window it for about 100 ms on the end of the cut
+
+    # window it for about 5 ms on the end of the cut
     # check that it hasnt been previously windowed
     if s > window_len:
         wl = min(window_len, len(wav) // 4)
