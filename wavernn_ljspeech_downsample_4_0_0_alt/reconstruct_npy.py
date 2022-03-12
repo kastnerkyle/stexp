@@ -371,7 +371,39 @@ if __name__=="__main__":
             e = s + 8
     else:
         e = None
-    wav = wav[s:e]
+
+    # do a local search for minimum energy cut point, preferring "farther back" for start, and "later" for end...
+    def local_cut_point_search(lcl_wav, cut_center, search_window_ms=50):
+        wav_sample_cut_point = cut_center
+        orig_wav = lcl_wav
+        # assumes 22050 sample rate!
+        lcl_window_samples = int(search_window_ms * 1E-3 * 22050) # roughly 100ms window each size
+        # we need to find good cut points based on the mag envelope
+        # good discussion, we do it quick and dirty here but could do a proper A / E weighting etc
+        # https://dsp.stackexchange.com/questions/17628/python-audio-detecting-silence-in-audio-signal/17629
+        # https://github.com/endolith/waveform_analysis/blob/master/waveform_analysis/weighting_filters/ABC_weighting.py#L29
+        # https://stackoverflow.com/questions/30889748/how-to-obtain-sound-envelope-using-python
+        from scipy.signal import hilbert
+        analytic_wav = hilbert(orig_wav)
+        envelope_wav = np.abs(analytic_wav)
+        # use the combined rank from both sorts (min by env value, min by grad norm of env) to pick cut point
+        # roughly looking for a place where the envelope isnt really changing, and where the abs value of the signal is low
+        # be sure to start at 0 if the window would shift too far... negative indexing in numpy will give some bad results
+        lbound = max(0, wav_sample_cut_point - lcl_window_samples)
+        min_order = np.argsort(envelope_wav[lbound:lbound + 2 * lcl_window_samples])
+        min_grad_order = np.argsort((envelope_wav[lbound + 1:lbound + 2 * lcl_window_samples] - envelope_wav[lbound:lbound + 2 * lcl_window_samples - 1]) ** 2)
+
+        combined_ranking = [int(np.where(min_grad_order == a)[0][0]) + idx1 if len(np.where(min_grad_order == a)[0]) > 0 else np.inf for idx1, a in enumerate(min_order)]
+        min_ranked_pos = np.argmin(combined_ranking)
+        min_cut_point = min_order[min_ranked_pos]
+        min_cut_point_samples = int(lbound + min_cut_point)
+        return min_cut_point_samples
+
+    # hilbert waveform cut here, find nearest min energy? within ~ 100ms
+    s_final = local_cut_point_search(wav, s)
+    e_final = local_cut_point_search(wav, e)
+
+    wav = wav[s_final:e_final]
 
     # window it for about 5 ms on the end of the cut
     # check that it hasnt been previously windowed
