@@ -391,7 +391,12 @@ if __name__=="__main__":
         # be sure to start at 0 if the window would shift too far... negative indexing in numpy will give some bad results
         lbound = max(0, wav_sample_cut_point - lcl_window_samples)
         min_order = np.argsort(envelope_wav[lbound:lbound + 2 * lcl_window_samples])
-        min_grad_order = np.argsort((envelope_wav[lbound + 1:lbound + 2 * lcl_window_samples] - envelope_wav[lbound:lbound + 2 * lcl_window_samples - 1]) ** 2)
+        rbound = lbound + 2 * lcl_window_samples
+        if rbound >= (len(envelope_wav) - 1):
+            # shrink rbound to make shapes match
+            rbound = (len(envelope_wav) - 1)
+
+        min_grad_order = np.argsort((envelope_wav[lbound + 1:rbound] - envelope_wav[lbound:rbound - 1]) ** 2)
 
         combined_ranking = [int(np.where(min_grad_order == a)[0][0]) + idx1 if len(np.where(min_grad_order == a)[0]) > 0 else np.inf for idx1, a in enumerate(min_order)]
         min_ranked_pos = np.argmin(combined_ranking)
