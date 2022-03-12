@@ -345,10 +345,10 @@ if __name__=="__main__":
     pth_mels = torch.Tensor(m_in).to(use_device)
     wav = model.generate(pth_mels, DEVICE=use_device)
 
-    # window it for about 5 ms
-    window_len = int(.005 * 22050)
-    wav[:window_len] = np.blackman(2 * window_len)[:window_len, None] * wav[:window_len]
-    wav[-window_len:] = np.blackman(2 * window_len)[-window_len:, None] * wav[-window_len:]
+    # window for about 32 samples?
+    #window_len = int(32)
+    #wav[:window_len] = np.blackman(2 * window_len)[:window_len, None] * wav[:window_len]
+    #wav[-window_len:] = np.blackman(2 * window_len)[-window_len:, None] * wav[-window_len:]
 
     output_dir = 'eval'
     if not os.path.exists(output_dir):
@@ -375,14 +375,14 @@ if __name__=="__main__":
 
     # window it for about 5 ms on the end of the cut
     # check that it hasnt been previously windowed
-    if s > window_len:
-        wl = min(window_len, len(wav) // 4)
-        wav[:wl] = np.blackman(2 * wl)[:wl, None] * wav[:wl]
+    #if s > window_len:
+    #    wl = min(window_len, len(wav) // 4)
+    #    wav[:wl] = np.blackman(2 * wl)[:wl, None] * wav[:wl]
 
-    if end_frame is not None:
-        if e < (len(wav) - window_len):
-            wl = min(window_len, len(wav) // 4)
-            wav[-wl:] = np.blackman(2 * wl)[-wl:, None] * wav[-wl:]
+    #if end_frame is not None:
+    #    if e < (len(wav) - window_len):
+    #        wl = min(window_len, len(wav) // 4)
+    #        wav[-wl:] = np.blackman(2 * wl)[-wl:, None] * wav[-wl:]
 
     wav_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}.wav".format(global_step,0))
     scaled_wav = soundsc(wav - np.mean(wav))
