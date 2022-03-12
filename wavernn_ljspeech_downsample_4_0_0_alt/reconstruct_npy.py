@@ -5,6 +5,7 @@ usage: reconstruct_npy.py [options] <npy-file>
 options:
     --checkpoint=<path>         Restore model from checkpoint path
     --bias_information=<path>   Path to bias information from the melnet encoder to tell where the frame cuts are
+    --attention_information=<path>   Path to attention information from the melnet encoder to tell where the end is
     --bias_data_frame_offset=<val> Value for bias data frame offset, negative is "forward" in time, positive backward
     -h, --help                  Show this help message and exit
 """
@@ -273,6 +274,7 @@ if __name__=="__main__":
     args = docopt(__doc__)
     checkpoint_path = args["--checkpoint"]
     bias_path = args["--bias_information"]
+    attention_path = args["--attention_information"]
     bias_data_frame_offset = args["--bias_data_frame_offset"]
     if bias_path is None:
         print("no bias_information file specified, using default cutoff of 0")
@@ -284,6 +286,17 @@ if __name__=="__main__":
         with open(bias_path, "r") as f:
             l = f.readlines()
             start_frame = int(l[1].strip().split(":")[1])
+
+    if attention_path is None:
+        print("no attention_information file specified, using no cutoff")
+        end_frame = None
+    else:
+        if not os.path.exists(attention_path):
+            print("--attention_information={}, file not found! Ensure the path is correct and the file exists".format(attention_path))
+            sys.exit()
+        with open(attention_path, "r") as f:
+            l = f.readlines()
+            end_frame = int(l[1].strip().split(":")[1])
 
     if bias_data_frame_offset is None:
         bias_data_frame_offset = 0
@@ -338,6 +351,8 @@ if __name__=="__main__":
     wav[-window_len:] = np.blackman(2 * window_len)[-window_len:, None] * wav[-window_len:]
 
     output_dir = 'eval'
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
     wav_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}_full.wav".format(global_step,0))
     scaled_wav = soundsc(wav - np.mean(wav))
     wavfile.write(wav_path, hp.sample_rate, scaled_wav)
@@ -348,14 +363,26 @@ if __name__=="__main__":
 
     # cut it based on the cut point
     s = int(start_frame * rs * 200) # hard code stft samples per frame for now... 
-    wav = wav[s:]
+    if end_frame is not None:
+        e = int(end_frame * rs * 200) # hard code stft samples per frame for now... 
+        if s >= e:
+            print("WARNING: Got sample start frame {}, aka {} seconds, and end frame {}, aka {} seconds".format(start_frame, s, end_frame, e))
+            print("WARNING: detected 0 length segment due to bias/attention crops, debug this in the attention based sampler.")
+            e = s + 8
+    else:
+        e = None
+    wav = wav[s:e]
     # window it for about 100 ms on the end of the cut
-    #wav[:window_len] = np.blackman(2 * window_len)[:window_len, None] * wav[:window_len]
-    wav[-window_len:] = np.blackman(2 * window_len)[-window_len:, None] * wav[-window_len:]
+    # check that it hasnt been previously windowed
+    if s > window_len:
+        wl = min(window_len, len(wav) // 4)
+        wav[:wl] = np.blackman(2 * wl)[:wl, None] * wav[:wl]
 
-    output_dir = 'eval'
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
+    if end_frame is not None:
+        if e < (len(wav) - window_len):
+            wl = min(window_len, len(wav) // 4)
+            wav[-wl:] = np.blackman(2 * wl)[-wl:, None] * wav[-wl:]
+
     wav_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}.wav".format(global_step,0))
     scaled_wav = soundsc(wav - np.mean(wav))
     wavfile.write(wav_path, hp.sample_rate, scaled_wav)
