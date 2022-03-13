@@ -1,0 +1,15 @@
+https://github.com/kastnerkyle/WaveRNN-PyTorch
+commit hash info for starting point
+
+python preprocess.py --output-dir=robovoice_25k_base_preproc /usr/local/data/kkastner/robovoice/robovoice_d_25k/wavs/
+
+python train.py --checkpoint-dir=base_train robovoice_25k_base_preproc/
+
+
+commit b3911f7092ae4add610030da52a67f24a4ce7d6d
+Author: G-Wang <ywa289@sfu.ca>
+Date:   Fri Nov 16 14:29:05 2018 -0800
+
+    update with 10-bit audio sample and checkpoint
+
+Downloaded 10 bit training hparams and put in place

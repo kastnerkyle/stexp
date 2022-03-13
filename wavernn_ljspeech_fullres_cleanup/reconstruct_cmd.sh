@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=0 python reconstruct_npy.py combined_unnormalized_samples.npy --checkpoint=finetune_base_256mel/checkpoint_step000300000.pth --bias_information=tier4_1_cond4_0_bias_information.txt
