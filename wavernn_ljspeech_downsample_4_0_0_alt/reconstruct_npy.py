@@ -373,7 +373,7 @@ if __name__=="__main__":
         e = None
 
     # do a local search for minimum energy cut point, preferring "farther back" for start, and "later" for end...
-    def local_cut_point_search(lcl_wav, cut_center, search_window_ms=50):
+    def local_cut_point_search(lcl_wav, cut_center, search_window_ms=50, bias=None):
         wav_sample_cut_point = cut_center
         orig_wav = lcl_wav
         # assumes 22050 sample rate!
@@ -399,14 +399,19 @@ if __name__=="__main__":
         min_grad_order = np.argsort((envelope_wav[lbound + 1:rbound] - envelope_wav[lbound:rbound - 1]) ** 2)
 
         combined_ranking = [int(np.where(min_grad_order == a)[0][0]) + idx1 if len(np.where(min_grad_order == a)[0]) > 0 else np.inf for idx1, a in enumerate(min_order)]
-        min_ranked_pos = np.argmin(combined_ranking)
-        min_cut_point = min_order[min_ranked_pos]
+        ranked_cut_points = [min_order[c] for c in np.argsort(combined_ranking)]
+        if bias == "left":
+            ranked_cut_points = [rc for rc in ranked_cut_points if int(lbound + rc) <= center]
+        elif bias == "right"
+            ranked_cut_points = [rc for rc in ranked_cut_points if int(lbound + rc) >= center]
+
+        min_cut_point = ranked_cut_points[0]
         min_cut_point_samples = int(lbound + min_cut_point)
         return min_cut_point_samples
 
     # hilbert waveform cut here, find nearest min energy? within ~ 100ms
-    s_final = local_cut_point_search(wav, s)
-    e_final = local_cut_point_search(wav, e)
+    s_final = local_cut_point_search(wav, s, bias="left")
+    e_final = local_cut_point_search(wav, e, bias="right")
 
     wav = wav[s_final:e_final]
 
