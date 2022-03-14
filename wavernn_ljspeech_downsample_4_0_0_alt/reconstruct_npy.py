@@ -402,7 +402,7 @@ if __name__=="__main__":
         ranked_cut_points = [min_order[c] for c in np.argsort(combined_ranking)]
         if bias == "left":
             ranked_cut_points = [rc for rc in ranked_cut_points if int(lbound + rc) <= center]
-        elif bias == "right"
+        elif bias == "right":
             ranked_cut_points = [rc for rc in ranked_cut_points if int(lbound + rc) >= center]
 
         min_cut_point = ranked_cut_points[0]
