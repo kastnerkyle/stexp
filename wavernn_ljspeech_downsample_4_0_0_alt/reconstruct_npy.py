@@ -401,9 +401,9 @@ if __name__=="__main__":
         combined_ranking = [int(np.where(min_grad_order == a)[0][0]) + idx1 if len(np.where(min_grad_order == a)[0]) > 0 else np.inf for idx1, a in enumerate(min_order)]
         ranked_cut_points = [min_order[c] for c in np.argsort(combined_ranking)]
         if bias == "left":
-            ranked_cut_points = [rc for rc in ranked_cut_points if int(lbound + rc) <= center]
+            ranked_cut_points = [rc for rc in ranked_cut_points if int(lbound + rc) <= cut_center]
         elif bias == "right":
-            ranked_cut_points = [rc for rc in ranked_cut_points if int(lbound + rc) >= center]
+            ranked_cut_points = [rc for rc in ranked_cut_points if int(lbound + rc) >= cut_center]
 
         min_cut_point = ranked_cut_points[0]
         min_cut_point_samples = int(lbound + min_cut_point)
@@ -411,7 +411,7 @@ if __name__=="__main__":
 
     # hilbert waveform cut here, find nearest min energy? within ~ 100ms
     s_final = local_cut_point_search(wav, s, bias="left")
-    e_final = local_cut_point_search(wav, e, bias="right")
+    e_final = local_cut_point_search(wav, e)
 
     wav = wav[s_final:e_final]
 
