@@ -373,7 +373,7 @@ if __name__=="__main__":
         e = None
 
     # do a local search for minimum energy cut point, preferring "farther back" for start, and "later" for end...
-    def local_cut_point_search(lcl_wav, cut_center, search_window_ms=150, bias=None):
+    def local_cut_point_search(lcl_wav, cut_center, search_window_ms=50, bias=None):
         wav_sample_cut_point = cut_center
         orig_wav = lcl_wav
         # assumes 22050 sample rate!
