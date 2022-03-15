@@ -373,7 +373,7 @@ if __name__=="__main__":
         e = None
 
     # do a local search for minimum energy cut point, preferring "farther back" for start, and "later" for end...
-    def local_cut_point_search(lcl_wav, cut_center, search_window_ms=50, bias=None):
+    def local_cut_point_search(lcl_wav, cut_center, search_window_ms=150, bias=None):
         wav_sample_cut_point = cut_center
         orig_wav = lcl_wav
         # assumes 22050 sample rate!
@@ -405,7 +405,12 @@ if __name__=="__main__":
         elif bias == "right":
             ranked_cut_points = [rc for rc in ranked_cut_points if int(lbound + rc) >= cut_center]
 
-        min_cut_point = ranked_cut_points[0]
+        if bias == "left":
+            min_cut_point = np.min(ranked_cut_points[:1000])
+        elif bias == "right":
+            min_cut_point = np.max(ranked_cut_points[:1000])
+        else:
+            min_cut_point = ranked_cut_points[0]
         min_cut_point_samples = int(lbound + min_cut_point)
         return min_cut_point_samples
 
