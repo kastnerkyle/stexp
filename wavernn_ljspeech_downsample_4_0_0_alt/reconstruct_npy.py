@@ -6,8 +6,8 @@ options:
     --checkpoint=<path>         Restore model from checkpoint path
     --bias_information=<path>   Path to bias information from the melnet encoder to tell where the frame cuts are
     --attention_information=<path>   Path to attention information from the melnet encoder to tell where the end is
-    --bias_data_frame_offset=<val> Value for bias data frame offset, negative is "forward" in time, positive backward
-    --bias_data_frame_offset_right=<val> Value for bias data frame offset, negative is "forward" in time, positive backward
+    --bias_data_frame_offset=<val> Value for bias data frame offset, positive is "forward" in time, negative backward
+    --bias_data_frame_offset_right=<val> Value for bias data frame offset, positive is "forward" in time, negative backward
     -h, --help                  Show this help message and exit
 """
 
@@ -340,7 +340,7 @@ if __name__=="__main__":
     mels = np.load(npy_file)
     # this is variable now... oy oy
     # can support non-int actually
-    start_frame = max(0, start_frame - bias_data_frame_offset)
+    start_frame = max(0, start_frame + bias_data_frame_offset)
     end_frame = min(mels.shape[1] - 1, end_frame + bias_data_frame_offset)
 
     # 1, time, mel, 1 from npy -> mel, time 2D array
