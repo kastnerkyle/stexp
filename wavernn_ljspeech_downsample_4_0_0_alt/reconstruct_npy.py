@@ -7,6 +7,7 @@ options:
     --bias_information=<path>   Path to bias information from the melnet encoder to tell where the frame cuts are
     --attention_information=<path>   Path to attention information from the melnet encoder to tell where the end is
     --bias_data_frame_offset=<val> Value for bias data frame offset, negative is "forward" in time, positive backward
+    --bias_data_frame_offset_right=<val> Value for bias data frame offset, negative is "forward" in time, positive backward
     -h, --help                  Show this help message and exit
 """
 
@@ -276,6 +277,7 @@ if __name__=="__main__":
     bias_path = args["--bias_information"]
     attention_path = args["--attention_information"]
     bias_data_frame_offset = args["--bias_data_frame_offset"]
+    bias_data_frame_offset_right = args["--bias_data_frame_offset_right"]
     if bias_path is None:
         print("no bias_information file specified, using default cutoff of 0")
         start_frame = 0
@@ -302,6 +304,11 @@ if __name__=="__main__":
         bias_data_frame_offset = 0
     else:
         bias_data_frame_offset = float(bias_data_frame_offset)
+
+    if bias_data_frame_offset_right is None:
+        bias_data_frame_offset_right = 0
+    else:
+        bias_data_frame_offset_right = float(bias_data_frame_offset_right)
 
     npy_file = args["<npy-file>"]
     use_device= 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -334,6 +341,7 @@ if __name__=="__main__":
     # this is variable now... oy oy
     # can support non-int actually
     start_frame = max(0, start_frame - bias_data_frame_offset)
+    end_frame = max(mels.shape[1] - 1, end_frame + bias_data_frame_offset)
 
     # 1, time, mel, 1 from npy -> mel, time 2D array
     m_in = mels[0, :, :, 0].T
