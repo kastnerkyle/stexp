@@ -341,7 +341,7 @@ if __name__=="__main__":
     # this is variable now... oy oy
     # can support non-int actually
     start_frame = max(0, start_frame - bias_data_frame_offset)
-    end_frame = max(mels.shape[1] - 1, end_frame + bias_data_frame_offset)
+    end_frame = min(mels.shape[1] - 1, end_frame + bias_data_frame_offset)
 
     # 1, time, mel, 1 from npy -> mel, time 2D array
     m_in = mels[0, :, :, 0].T
