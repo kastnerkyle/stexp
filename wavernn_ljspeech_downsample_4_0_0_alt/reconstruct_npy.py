@@ -424,7 +424,7 @@ if __name__=="__main__":
 
     # hilbert waveform cut here, find nearest min energy? within ~ 100ms
     s_final = local_cut_point_search(wav, s, bias="left")
-    e_final = local_cut_point_search(wav, e)
+    e_final = local_cut_point_search(wav, e, bias="right")
 
     wav = wav[s_final:e_final]
 
