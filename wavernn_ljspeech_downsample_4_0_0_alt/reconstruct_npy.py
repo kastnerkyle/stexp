@@ -315,12 +315,12 @@ if __name__=="__main__":
         bias_data_frame_offset_right = float(bias_data_frame_offset_right)
 
     if fixed_pad_left is None:
-        fixed_pad_left = 4000
+        fixed_pad_left = 1000
     else:
         fixed_pad_left = int(fixed_pad_left)
 
     if fixed_pad_right is None:
-        fixed_pad_right = 4000
+        fixed_pad_right = 1000
     else:
         fixed_pad_right = int(fixed_pad_right)
 
