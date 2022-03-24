@@ -8,6 +8,8 @@ options:
     --attention_information=<path>   Path to attention information from the melnet encoder to tell where the end is
     --bias_data_frame_offset=<val> Value for bias data frame offset, positive is "forward" in time, negative backward
     --bias_data_frame_offset_right=<val> Value for bias data frame offset, positive is "forward" in time, negative backward
+    --fixed_pad_left=<val> number of samples to pad on the left when cutting
+    --fixed_pad_right=<val> number of samples to pad on the right when cutting
     -h, --help                  Show this help message and exit
 """
 
@@ -278,6 +280,8 @@ if __name__=="__main__":
     attention_path = args["--attention_information"]
     bias_data_frame_offset = args["--bias_data_frame_offset"]
     bias_data_frame_offset_right = args["--bias_data_frame_offset_right"]
+    fixed_pad_left = args["--fixed_pad_left"]
+    fixed_pad_right = args["--fixed_pad_right"]
     if bias_path is None:
         print("no bias_information file specified, using default cutoff of 0")
         start_frame = 0
@@ -309,6 +313,16 @@ if __name__=="__main__":
         bias_data_frame_offset_right = 0
     else:
         bias_data_frame_offset_right = float(bias_data_frame_offset_right)
+
+    if fixed_pad_left is None:
+        fixed_pad_left = 4000
+    else:
+        fixed_pad_left = int(fixed_pad_left)
+
+    if fixed_pad_right is None:
+        fixed_pad_right = 4000
+    else:
+        fixed_pad_right = int(fixed_pad_right)
 
     npy_file = args["<npy-file>"]
     use_device= 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -425,6 +439,9 @@ if __name__=="__main__":
     # hilbert waveform cut here, find nearest min energy? within ~ 100ms
     s_final = local_cut_point_search(wav, s, bias="left")
     e_final = local_cut_point_search(wav, e, bias="right")
+
+    s_final = max(0, s_final - fixed_pad_left)
+    e_final = min(len(wav) - 1, e_final + fixed_pad_right)
 
     wav = wav[s_final:e_final]
 
