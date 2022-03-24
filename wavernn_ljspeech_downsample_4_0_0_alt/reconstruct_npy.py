@@ -409,9 +409,9 @@ if __name__=="__main__":
         combined_ranking = [int(np.where(min_grad_order == a)[0][0]) + idx1 if len(np.where(min_grad_order == a)[0]) > 0 else np.inf for idx1, a in enumerate(min_order)]
         ranked_cut_points = [min_order[c] for c in np.argsort(combined_ranking)]
         if bias == "left":
-            ranked_cut_points = [rc for rc in ranked_cut_points if int(lbound + rc) <= cut_center]
+            ranked_cut_points = [rc for rc in ranked_cut_points]
         elif bias == "right":
-            ranked_cut_points = [rc for rc in ranked_cut_points if int(lbound + rc) >= cut_center]
+            ranked_cut_points = [rc for rc in ranked_cut_points]
 
         if bias == "left":
             min_cut_point = np.min(ranked_cut_points[:1000])
