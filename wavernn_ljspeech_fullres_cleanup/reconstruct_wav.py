@@ -323,13 +323,14 @@ if __name__=="__main__":
     d = d.astype("float32") / (2 ** 15)
     mels = speech._melspectrogram_preprocess(d, fs)
     m_in = mels.T
+    output_dir = 'eval'
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+    np.save(output_dir + os.sep + "mel.npy", m_in)
 
     pth_mels = torch.Tensor(m_in).to(use_device)
     wav = model.generate(pth_mels, DEVICE=use_device)
 
-    output_dir = 'eval'
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
     wav_path = os.path.join(output_dir,"eval_checkpoint_step{:09d}_wav_{}_full.wav".format(global_step,0))
     scaled_wav = soundsc(wav - np.mean(wav))
     wavfile.write(wav_path, hp.sample_rate, scaled_wav)
